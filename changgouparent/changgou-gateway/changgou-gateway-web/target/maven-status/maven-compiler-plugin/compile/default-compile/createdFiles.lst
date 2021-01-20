@@ -1,0 +1,4 @@
+com\gxh\GatewayWebApplication$1.class
+com\gxh\GatewayWebApplication.class
+com\gxh\utils\JwtUtil.class
+com\gxh\filter\AuthorizeFilter.class

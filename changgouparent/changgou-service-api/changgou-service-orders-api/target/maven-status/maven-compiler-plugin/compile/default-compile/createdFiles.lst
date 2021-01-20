@@ -1,0 +1,10 @@
+com\changgou\orders\pojo\ReturnCause.class
+com\changgou\orders\pojo\UndoLog.class
+com\changgou\orders\pojo\OrderConfig.class
+com\changgou\orders\pojo\Order.class
+com\changgou\orders\pojo\OrderLog.class
+com\changgou\orders\pojo\Preferential.class
+com\changgou\orders\pojo\ReturnOrder.class
+com\changgou\orders\pojo\OrderItem.class
+com\changgou\orders\pojo\CategoryReport.class
+com\changgou\orders\pojo\ReturnOrderItem.class

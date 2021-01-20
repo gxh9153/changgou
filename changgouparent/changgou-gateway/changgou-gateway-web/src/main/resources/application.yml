@@ -1,0 +1,74 @@
+spring:
+  application:
+    name: gateway-web
+  redis:
+    host: 192.168.232.132
+    port: 6379
+    database: 1
+    jedis:
+      pool:
+        max-active: 8
+        max-idle: 8
+        min-idle: 0
+  cloud:
+    gateway:
+      globalcors:
+        corsConfigurations:
+          '[/**]':   #匹配所有请求
+            allowedOrigins: "*" #跨域处理 允许所有的域
+            allowedMethods: #支持的方法
+              -GET
+              -POST
+              -PUT
+              -DELETE
+      routes:
+        # 唯一表示
+        - id: changgou_goods_route
+          #uri: http://localhost:18081
+          #lb使用LoadBalancerClient实现负债均衡，goods指的是微服务名称【主要应用于集群环境】
+          uri: lb://goods
+          #路由断言  ，路由匹配规则
+          predicates:
+            #用户请求的域名规则配置
+            #- Host=cloud.itheima.com**
+          - Path=/api/brand/**
+          #- Path=/**
+            #所有以/api/brand的请求，都被路由到 http://localhost:18081微服务
+            #希望微服务网关自动给我加上/api,每次请求真是路径去掉/api
+          filters:
+              #将请求路径中的第一个路径取消
+          - StripPrefix=1
+          #- PrefixPath=/brand
+          #局部限流过滤器
+          - name: RequestRateLimiter #请求数据流 名字不能随便写，使用默认的factory
+            args:
+              #用户身份唯一标识符
+              key-resolver: "#{@ipKeyResolver}"
+              #每秒钟只有一个请求
+              redis-rate-limiter.replenishRate: 1
+              #允许并发有四个请求[宽限的个数]
+              redis-rate-limiter.burstCapacity: 4
+        - id: changgou_user_route
+          uri: lb://user
+          predicates:
+          - Path=/api/address/**,/api/areas/**,/api/cities/**,/api/provinces/**,/api/user/**
+          filters:
+            #将请求路径中的第一个路径取消
+          - StripPrefix=1
+server:
+  port: 8001
+eureka:
+  client:
+    service-url:
+      defaultZone: http://127.0.0.1:7001/eureka
+  instance:
+    prefer-ip-address: true #以IP地址注册到服务中心
+#开启应用监控治理端点
+management:
+  endpoint:
+    gateway:
+      enabled: true
+    #暴露端点
+    web:
+      exposure:
+        include: true
