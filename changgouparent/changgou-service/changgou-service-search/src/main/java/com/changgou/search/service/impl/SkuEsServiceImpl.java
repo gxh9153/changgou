@@ -7,6 +7,7 @@ import com.changgou.goods.pojo.Sku;
 import com.changgou.search.dao.SkuEsMapper;
 import com.changgou.search.pojo.SkuInfo;
 import com.changgou.search.service.SkuEsService;
+import org.apache.commons.lang.StringUtils;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
@@ -49,14 +50,21 @@ public class SkuEsServiceImpl implements SkuEsService {
 
         /**
          * 分类分组查询
+         * 如果搜索条件为空则进行分组搜索
          */
-        List<String> categoryList = searchFieldList(builder,"skuCategory","categoryName");
-
+        if(searchMap == null || StringUtils.isEmpty(searchMap.get("category"))){
+            List<String> categoryList = searchFieldList(builder,"skuCategory","categoryName");
+            resultMap.put("categoryList",categoryList);
+        }
 
         /**
          * 品牌分组查询
          */
-        List<String> brandList = searchFieldList(builder,"skuBrand","brandName");
+        if(searchMap == null || StringUtils.isEmpty(searchMap.get("brand"))){
+            List<String> brandList = searchFieldList(builder,"skuBrand","brandName");
+            resultMap.put("brandList",brandList);
+        }
+
 
         /**
          * 规格分组查询
@@ -66,10 +74,7 @@ public class SkuEsServiceImpl implements SkuEsService {
         //定义返回的数据格式
         Map<String, Set<String>> allSpec = new HashMap<String,Set<String>>();
         dataMerge(specList, allSpec);
-
         resultMap.put("allSpec",allSpec);
-        resultMap.put("categoryList",categoryList);
-        resultMap.put("brandList",brandList);
         return resultMap;
     }
 

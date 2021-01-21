@@ -1,10 +1,12 @@
 package com.changgou;
 
+import com.changgou.entity.FeignRequestInterceptor;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 import org.springframework.cloud.netflix.eureka.EnableEurekaClient;
 import org.springframework.cloud.openfeign.EnableFeignClients;
+import org.springframework.context.annotation.Bean;
 import org.springframework.data.elasticsearch.repository.config.EnableElasticsearchRepositories;
 
 /**
@@ -25,5 +27,13 @@ public class SearchApplication {
          */
         System.setProperty("es.set.netty.runtime.available.processors","false");
         SpringApplication.run(SearchApplication.class,args);
+    }
+    /**
+     * 将Feign拦截器注入到容器中
+     * @return
+     */
+    @Bean
+    public FeignRequestInterceptor get(){
+        return new FeignRequestInterceptor();
     }
 }
