@@ -8,6 +8,7 @@ import com.changgou.search.dao.SkuEsMapper;
 import com.changgou.search.pojo.SkuInfo;
 import com.changgou.search.service.SkuEsService;
 import org.apache.commons.lang.StringUtils;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
@@ -106,15 +107,30 @@ public class SkuEsServiceImpl implements SkuEsService {
         //搜索条件构建对象，用户封装各种搜索条件
         NativeSearchQueryBuilder builder = new NativeSearchQueryBuilder();
 
+        //BoolQueryBuild  根据多条件组合查询
+        BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();
+
+
         if(searchMap != null && searchMap.size() >0){
             //根据关键词搜索
             String keywords = searchMap.get("keywords");
             //如果不为空，则根据关键词搜索
             if(StringUtil.isNotEmpty(keywords)){
-                builder.withQuery(QueryBuilders.queryStringQuery(keywords).field("name"));
+                //builder.withQuery(QueryBuilders.queryStringQuery(keywords).field("name"));
+                //1:关键字查询
+                builder.withQuery(QueryBuilders.matchQuery("name",searchMap.get("keywords")));
+            }
+            //2:分类搜索
+            if(StringUtils.isNotEmpty(searchMap.get("category"))){
+                boolQueryBuilder.must(QueryBuilders.matchQuery("categoryName",searchMap.get("category")));
+            }
+            //3：品牌搜索
+            if(StringUtils.isNotEmpty(searchMap.get("brand"))){
+                boolQueryBuilder.must(QueryBuilders.matchQuery("brandName",searchMap.get("brand")));
             }
 
         }
+        builder.withQuery(boolQueryBuilder);
         return builder;
     }
 
