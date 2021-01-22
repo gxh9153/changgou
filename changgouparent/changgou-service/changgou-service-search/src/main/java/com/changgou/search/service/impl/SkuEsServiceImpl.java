@@ -8,13 +8,24 @@ import com.changgou.search.dao.SkuEsMapper;
 import com.changgou.search.pojo.SkuInfo;
 import com.changgou.search.service.SkuEsService;
 import org.apache.commons.lang.StringUtils;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
+import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.elasticsearch.core.ElasticsearchTemplate;
+import org.springframework.data.elasticsearch.core.SearchResultMapper;
 import org.springframework.data.elasticsearch.core.aggregation.AggregatedPage;
+import org.springframework.data.elasticsearch.core.aggregation.impl.AggregatedPageImpl;
 import org.springframework.data.elasticsearch.core.query.NativeSearchQueryBuilder;
 import org.springframework.stereotype.Service;
 import tk.mybatis.mapper.util.StringUtil;
@@ -107,7 +118,7 @@ public class SkuEsServiceImpl implements SkuEsService {
         //搜索条件构建对象，用户封装各种搜索条件
         NativeSearchQueryBuilder builder = new NativeSearchQueryBuilder();
 
-        //BoolQueryBuild  根据多条件组合查询
+        //BoolQueryBuilder  根据多条件组合查询
         BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();
 
 
@@ -118,7 +129,7 @@ public class SkuEsServiceImpl implements SkuEsService {
             if(StringUtil.isNotEmpty(keywords)){
                 //builder.withQuery(QueryBuilders.queryStringQuery(keywords).field("name"));
                 //1:关键字查询
-                builder.withQuery(QueryBuilders.matchQuery("name",searchMap.get("keywords")));
+                boolQueryBuilder.must(QueryBuilders.matchQuery("name",searchMap.get("keywords")));
             }
             //2:分类搜索
             if(StringUtils.isNotEmpty(searchMap.get("category"))){
@@ -129,9 +140,45 @@ public class SkuEsServiceImpl implements SkuEsService {
                 boolQueryBuilder.must(QueryBuilders.matchQuery("brandName",searchMap.get("brand")));
             }
 
+            //4：规格搜索
+            for (Map.Entry<String, String> entry : searchMap.entrySet()) {
+                String key = entry.getKey();
+                String value = entry.getValue();
+                if(key.startsWith("spec_")){
+                    boolQueryBuilder.must(QueryBuilders.termQuery("specMap."+key.split("_")[1]+".keyword",value));
+                }
+            }
+
+        }
+
+        //分页实现搜索
+        Integer pageNum = getPageInfo(searchMap).get("pageNum");//指定排序的域
+        Integer pageSize = getPageInfo(searchMap).get("pageSize");//指定排序的规则
+        builder.withPageable(PageRequest.of(pageNum-1,pageSize));
+
+        //排序的实现
+        String sortField = searchMap.get("sortField");
+        String sortRule = searchMap.get("sortRule");
+        if(StringUtils.isNotEmpty(sortField) && StringUtils.isNotEmpty(sortRule)){
+            builder.withSort(new FieldSortBuilder(sortField).order(SortOrder.valueOf(sortRule)));
         }
         builder.withQuery(boolQueryBuilder);
         return builder;
+    }
+
+
+    public Map<String,Integer> getPageInfo(Map<String,String> searchMap){
+        Map<String,Integer> pageInfo = new HashMap<>();
+        String pageNum = searchMap.get("pageNum");
+        String pageSize = searchMap.get("pageSize");
+        if(StringUtils.isNotEmpty(pageNum) && StringUtils.isNotEmpty(pageSize)){
+            pageInfo.put("pageNum",Integer.parseInt(pageNum));
+            pageInfo.put("pageSize",Integer.parseInt(pageSize));
+        }else{
+            pageInfo.put("pageNum",1);
+            pageInfo.put("pageSize",5);
+        }
+        return pageInfo;
     }
 
     /**
@@ -140,14 +187,60 @@ public class SkuEsServiceImpl implements SkuEsService {
      * @return
      */
     private Map<String, Object> searchList(NativeSearchQueryBuilder builder) {
+
+        //高亮配置
+        HighlightBuilder.Field field = new HighlightBuilder.Field("name");//指定高亮域
+        //前缀
+        field.preTags("<em style=\"color:red;\">");
+        //后缀
+        field.postTags("</em>");
+        //碎片长度，关键词数据的长度
+        field.fragmentOffset(1000);
+        //添加高亮
+        builder.withHighlightFields(field);
+
         /**
          * 执行搜索
          * 1 搜索条件封装对象
          * 2 搜索的结果集（集合数据）需要转换的类型
          * 3 AggregatedPage<SkuInfo>:搜索结果集的封装
          */
-        AggregatedPage<SkuInfo> page = elasticsearchTemplate.queryForPage(builder.build(), SkuInfo.class);
+       //AggregatedPage<SkuInfo> page = elasticsearchTemplate.queryForPage(builder.build(), SkuInfo.class);
 
+        AggregatedPage<SkuInfo> page = elasticsearchTemplate.queryForPage(builder.build(),//搜索条件封装
+                SkuInfo.class,//数据集合要转换的类型的字节码
+                //SearchResultMapper 执行搜索后，将数据结果集封装到该对象中
+                new SearchResultMapper() {
+                    @Override
+                    public <T> AggregatedPage<T> mapResults(SearchResponse searchResponse, Class<T> aClass, Pageable pageable) {
+
+                        List<T> list  = new ArrayList<>();
+                        //执行查询，获取所有数据-》结果集【高亮|非高亮】
+                        for (SearchHit hit : searchResponse.getHits()) {
+                            //获取非高亮数据
+                            SkuInfo skuInfo = JSON.parseObject(hit.getSourceAsString(), SkuInfo.class);
+                            //获取高亮数据
+                            HighlightField highlightField = hit.getHighlightFields().get("name");
+                            if(highlightField != null && highlightField.getFragments()!= null){
+                                //读取高亮数据
+                                Text[] fragments = highlightField.getFragments();
+                                StringBuffer stringBuffer = new StringBuffer();
+                                for (Text fragment : fragments) {
+                                    stringBuffer.append(fragment);
+                                }
+                                skuInfo.setName(stringBuffer.toString());
+                                list.add((T) skuInfo);
+                            }
+                        }
+                        //将数据返回
+                        /****
+                         * 1）搜索的集合数据带高亮
+                         * 2）分页信息对象
+                         * 3）搜索记录总条数
+                         */
+                        return new AggregatedPageImpl<T>(list,pageable,searchResponse.getHits().getTotalHits());
+                    }
+                });
         //结果接集合内容
         List<SkuInfo> content = page.getContent();
         //结果集总记录数
