@@ -1,14 +1,20 @@
 package com.changgou.orders.service.impl;
 
+import com.changgou.entity.IdWorker;
+import com.changgou.orders.dao.OrderItemMapper;
 import com.changgou.orders.dao.OrderMapper;
 import com.changgou.orders.pojo.Order;
+import com.changgou.orders.pojo.OrderItem;
 import com.changgou.orders.service.OrderService;
 import com.github.pagehelper.PageHelper;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import tk.mybatis.mapper.entity.Example;
 
+import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 /****
@@ -22,6 +28,55 @@ public class OrderServiceImpl implements OrderService {
     @Autowired
     private OrderMapper orderMapper;
 
+    @Autowired
+    private IdWorker idWorker;
+
+    @Autowired
+    private RedisTemplate redisTemplate;
+
+    @Autowired
+    private OrderItemMapper orderItemMapper;
+
+
+    /**
+     * 创建订单
+     * @param order
+     */
+    @Override
+    public void add(Order order) {
+
+        List<OrderItem> orderItems = new ArrayList<>();
+        for (Long skuId : order.getSkuIds()) {
+            OrderItem orderItem = (OrderItem) redisTemplate.boundHashOps(order.getUsername() + "_Cart").get(skuId);
+            orderItems.add(orderItem);
+            redisTemplate.boundHashOps(order.getUsername() + "_Cart").delete(skuId);
+        }
+        order.setId(String.valueOf(idWorker.nextId()));//订单id
+        Integer totalNum = 0;//购买总数量
+        Integer totalMoney = 0;//购买的总金额
+        for (OrderItem orderItem : orderItems) {
+            totalNum += orderItem.getNum();//购买的数量
+            totalMoney += orderItem.getMoney();//金额
+            //2.添加订单选项表的数据
+            orderItem.setId(idWorker.nextId() + "");//订单选项的id
+            orderItem.setOrderId(order.getId());//订单的id
+            orderItem.setIsReturn("0");//未退货
+            orderItemMapper.insertSelective(orderItem);
+        }
+        order.setTotalNum(totalNum);//设置总数量
+
+        order.setTotalMoney(totalMoney);//设置总金额
+
+        order.setPayMoney(totalMoney);//设置实付金额
+
+        order.setCreateTime(new Date());//订单创建时间
+        order.setUpdateTime(order.getCreateTime());//订单更新时间
+        order.setOrderStatus("0");//0:未完成
+        order.setPayStatus("0");//未支付
+        order.setConsignStatus("0");//未发货
+        order.setIsDelete("0");//未删除
+        orderMapper.insertSelective(order);
+    }
 
     /**
      * Order条件+分页查询
@@ -206,16 +261,6 @@ public class OrderServiceImpl implements OrderService {
     @Override
     public int update(Order order){
         int count = orderMapper.updateByPrimaryKey(order);
-        return count;
-    }
-
-    /**
-     * 增加Order
-     * @param order
-     */
-    @Override
-    public int add(Order order){
-        int count = orderMapper.insert(order);
         return count;
     }
 

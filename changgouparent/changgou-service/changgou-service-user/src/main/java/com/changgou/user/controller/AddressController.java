@@ -1,6 +1,7 @@
 package com.changgou.user.controller;
 
 import com.changgou.api.CommonResult;
+import com.changgou.entity.TokenDecode;
 import com.changgou.user.pojo.Address;
 import com.changgou.user.service.AddressService;
 import io.swagger.annotations.*;
@@ -8,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 /****
  * @Author:gxh
@@ -21,6 +23,18 @@ public class AddressController {
 
     @Autowired
     private AddressService addressService;
+
+    /**
+     * 根据用户名查询收货地址列表
+     * @return
+     */
+    @GetMapping("/list")
+    public CommonResult<List<Address>> list(){
+        Map<String, String> userInfo = TokenDecode.getUserInfo();
+        String username = userInfo.get("username");
+        List<Address> list = addressService.list(username);
+        return CommonResult.success(list,"收货地址列表查询成功！");
+    }
 
     /***
      * Address分页条件搜索实现
