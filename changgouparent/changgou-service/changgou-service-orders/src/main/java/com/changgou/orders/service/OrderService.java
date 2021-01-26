@@ -10,6 +10,12 @@ import java.util.List;
  *****/
 public interface OrderService {
 
+    /**
+     * 创建订单
+     * @param order
+     */
+    void add(Order order);
+
     /***
      * Order多条件分页查询
      * @param order
@@ -45,13 +51,6 @@ public interface OrderService {
      * @param order
      */
     int update(Order order);
-
-    /***
-     * 新增Order
-     * @param order
-     */
-    int add(Order order);
-
     /**
      * 根据ID查询Order
      * @param id

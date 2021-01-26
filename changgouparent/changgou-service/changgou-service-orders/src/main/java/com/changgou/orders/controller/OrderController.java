@@ -1,6 +1,7 @@
 package com.changgou.orders.controller;
 
 import com.changgou.api.CommonResult;
+import com.changgou.entity.TokenDecode;
 import com.changgou.orders.pojo.Order;
 import com.changgou.orders.service.OrderService;
 import io.swagger.annotations.*;
@@ -8,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 /****
  * @Author:gxh
@@ -110,10 +112,13 @@ public class OrderController {
      */
     @ApiOperation(value = "Order添加",notes = "添加Order方法详情",tags = {"OrderController"})
     @PostMapping
-    public CommonResult<Integer> add(@RequestBody  @ApiParam(name = "Order对象",value = "传入JSON数据",required = true) Order order){
+    public CommonResult add(@RequestBody  @ApiParam(name = "Order对象",value = "传入JSON数据",required = true) Order order){
         //调用OrderService实现添加Order
-        int count = orderService.add(order);
-        return CommonResult.success(count);
+        Map<String, String> userInfo = TokenDecode.getUserInfo();
+        String username = userInfo.get("username");
+        order.setUsername(username);
+        orderService.add(order);
+        return CommonResult.success("订单创建成功");
     }
 
     /***
